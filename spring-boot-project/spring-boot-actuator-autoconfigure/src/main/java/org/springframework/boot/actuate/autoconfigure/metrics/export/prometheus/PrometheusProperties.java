@@ -1,11 +1,11 @@
 /*
- * Copyright 2012-2018 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,11 +20,14 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import io.micrometer.prometheus.HistogramFlavor;
+
 import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusPushGatewayManager.ShutdownOperation;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * {@link ConfigurationProperties} for configuring metrics export to Prometheus.
+ * {@link ConfigurationProperties @ConfigurationProperties} for configuring metrics export
+ * to Prometheus.
  *
  * @author Jon Schneider
  * @author Stephane Nicoll
@@ -43,7 +46,12 @@ public class PrometheusProperties {
 	 * Configuration options for using Prometheus Pushgateway, allowing metrics to be
 	 * pushed when they cannot be scraped.
 	 */
-	private Pushgateway pushgateway = new Pushgateway();
+	private final Pushgateway pushgateway = new Pushgateway();
+
+	/**
+	 * Histogram type for backing DistributionSummary and Timer.
+	 */
+	private HistogramFlavor histogramFlavor = HistogramFlavor.Prometheus;
 
 	/**
 	 * Step size (i.e. reporting frequency) to use.
@@ -58,6 +66,14 @@ public class PrometheusProperties {
 		this.descriptions = descriptions;
 	}
 
+	public HistogramFlavor getHistogramFlavor() {
+		return this.histogramFlavor;
+	}
+
+	public void setHistogramFlavor(HistogramFlavor histogramFlavor) {
+		this.histogramFlavor = histogramFlavor;
+	}
+
 	public Duration getStep() {
 		return this.step;
 	}
@@ -68,10 +84,6 @@ public class PrometheusProperties {
 
 	public Pushgateway getPushgateway() {
 		return this.pushgateway;
-	}
-
-	public void setPushgateway(Pushgateway pushgateway) {
-		this.pushgateway = pushgateway;
 	}
 
 	/**
@@ -87,7 +99,17 @@ public class PrometheusProperties {
 		/**
 		 * Base URL for the Pushgateway.
 		 */
-		private String baseUrl = "localhost:9091";
+		private String baseUrl = "http://localhost:9091";
+
+		/**
+		 * Login user of the Prometheus Pushgateway.
+		 */
+		private String username;
+
+		/**
+		 * Login password of the Prometheus Pushgateway.
+		 */
+		private String password;
 
 		/**
 		 * Frequency with which to push metrics.
@@ -123,6 +145,22 @@ public class PrometheusProperties {
 
 		public void setBaseUrl(String baseUrl) {
 			this.baseUrl = baseUrl;
+		}
+
+		public String getUsername() {
+			return this.username;
+		}
+
+		public void setUsername(String username) {
+			this.username = username;
+		}
+
+		public String getPassword() {
+			return this.password;
+		}
+
+		public void setPassword(String password) {
+			this.password = password;
 		}
 
 		public Duration getPushRate() {
