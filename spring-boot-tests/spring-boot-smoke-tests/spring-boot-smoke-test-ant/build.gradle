@@ -1,5 +1,4 @@
 plugins {
-	id "org.springframework.boot.conventions"
 	id "java-base"
 }
 
@@ -47,10 +46,19 @@ task syncTestRepository(type: Sync) {
 	}
 }
 
+task syncAntSources(type: Sync) {
+	destinationDir file("${buildDir}/ant")
+	from project.layout.projectDirectory
+	include "*.xml"
+	filter(springRepoistoryTransformers.ant())
+}
+
 task antRun(type: JavaExec) {
-	dependsOn syncTestRepository, configurations.antDependencies
+	workingDir "${buildDir}/ant"
+	dependsOn syncTestRepository, syncAntSources, configurations.antDependencies
 	classpath = configurations.antDependencies;
-	main = "org.apache.tools.ant.launch.Launcher"
+	mainClass = "org.apache.tools.ant.launch.Launcher"
+	args = [ "clean", "build" ]
 	systemProperties = [
 		"ant-spring-boot.version" : version,
 		"projectDir": project.layout.projectDirectory

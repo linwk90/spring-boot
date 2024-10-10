@@ -19,3 +19,7 @@ dependencies {
 bootWar {
 	classpath configurations.developmentOnly
 }
+
+bootWar {
+	includeTools = false
+}

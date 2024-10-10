@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import javax.servlet.ServletContext;
+import jakarta.servlet.ServletContext;
 
 import org.springframework.boot.web.server.ConfigurableWebServerFactory;
+import org.springframework.boot.web.server.Cookie.SameSite;
 import org.springframework.boot.web.server.MimeMappings;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.boot.web.servlet.ServletContextInitializer;
@@ -82,6 +83,13 @@ public interface ConfigurableServletWebServerFactory
 	void setMimeMappings(MimeMappings mimeMappings);
 
 	/**
+	 * Adds mime-type mappings.
+	 * @param mimeMappings the mime type mappings to add
+	 * @since 3.3.0
+	 */
+	void addMimeMappings(MimeMappings mimeMappings);
+
+	/**
 	 * Sets the document root directory which will be used by the web context to serve
 	 * static files.
 	 * @param documentRoot the document root or {@code null} if not required
@@ -124,5 +132,22 @@ public interface ConfigurableServletWebServerFactory
 	 * @param initParameters the init parameters
 	 */
 	void setInitParameters(Map<String, String> initParameters);
+
+	/**
+	 * Sets {@link CookieSameSiteSupplier CookieSameSiteSuppliers} that should be used to
+	 * obtain the {@link SameSite} attribute of any added cookie. This method will replace
+	 * any previously set or added suppliers.
+	 * @param cookieSameSiteSuppliers the suppliers to add
+	 * @see #addCookieSameSiteSuppliers
+	 */
+	void setCookieSameSiteSuppliers(List<? extends CookieSameSiteSupplier> cookieSameSiteSuppliers);
+
+	/**
+	 * Add {@link CookieSameSiteSupplier CookieSameSiteSuppliers} to those that should be
+	 * used to obtain the {@link SameSite} attribute of any added cookie.
+	 * @param cookieSameSiteSuppliers the suppliers to add
+	 * @see #setCookieSameSiteSuppliers
+	 */
+	void addCookieSameSiteSuppliers(CookieSameSiteSupplier... cookieSameSiteSuppliers);
 
 }

@@ -17,3 +17,7 @@ dependencies {
 	implementation(name: "standard")
 	implementation(name: "starter")
 }
+
+bootWar {
+	includeTools = false
+}

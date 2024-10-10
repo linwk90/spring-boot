@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import org.springframework.boot.buildpack.platform.docker.LogUpdateEvent;
 import org.springframework.boot.buildpack.platform.docker.TotalProgressEvent;
 import org.springframework.boot.buildpack.platform.docker.type.Image;
+import org.springframework.boot.buildpack.platform.docker.type.ImagePlatform;
 import org.springframework.boot.buildpack.platform.docker.type.ImageReference;
 import org.springframework.boot.buildpack.platform.docker.type.VolumeName;
 
@@ -31,6 +32,7 @@ import org.springframework.boot.buildpack.platform.docker.type.VolumeName;
  * @author Phillip Webb
  * @author Scott Frederick
  * @author Andrey Shlykov
+ * @author Rafael Ceccone
  * @since 2.3.0
  * @see #toSystemOut()
  */
@@ -43,52 +45,14 @@ public interface BuildLog {
 	void start(BuildRequest request);
 
 	/**
-	 * Log that the builder image is being pulled.
-	 * @param request the build request
-	 * @param imageReference the builder image reference
-	 * @return a consumer for progress update events
-	 * @deprecated since 2.4.0 in favor of
-	 * {@link #pullingImage(ImageReference, ImageType)}
-	 */
-	@Deprecated
-	Consumer<TotalProgressEvent> pullingBuilder(BuildRequest request, ImageReference imageReference);
-
-	/**
-	 * Log that the builder image has been pulled.
-	 * @param request the build request
-	 * @param image the builder image that was pulled
-	 * @deprecated since 2.4.0 in favor of {@link #pulledImage(Image, ImageType)}
-	 */
-	@Deprecated
-	void pulledBuilder(BuildRequest request, Image image);
-
-	/**
-	 * Log that a run image is being pulled.
-	 * @param request the build request
-	 * @param imageReference the run image reference
-	 * @return a consumer for progress update events
-	 * @deprecated since 2.4.0 in favor of
-	 * {@link #pullingImage(ImageReference, ImageType)}
-	 */
-	@Deprecated
-	Consumer<TotalProgressEvent> pullingRunImage(BuildRequest request, ImageReference imageReference);
-
-	/**
-	 * Log that a run image has been pulled.
-	 * @param request the build request
-	 * @param image the run image that was pulled
-	 * @deprecated since 2.4.0 in favor of {@link #pulledImage(Image, ImageType)}
-	 */
-	@Deprecated
-	void pulledRunImage(BuildRequest request, Image image);
-
-	/**
 	 * Log that an image is being pulled.
 	 * @param imageReference the image reference
+	 * @param platform the platform of the image
 	 * @param imageType the image type
 	 * @return a consumer for progress update events
 	 */
-	Consumer<TotalProgressEvent> pullingImage(ImageReference imageReference, ImageType imageType);
+	Consumer<TotalProgressEvent> pullingImage(ImageReference imageReference, ImagePlatform platform,
+			ImageType imageType);
 
 	/**
 	 * Log that an image has been pulled.
@@ -119,6 +83,14 @@ public interface BuildLog {
 	void executingLifecycle(BuildRequest request, LifecycleVersion version, VolumeName buildCacheVolume);
 
 	/**
+	 * Log that the lifecycle is executing.
+	 * @param request the build request
+	 * @param version the lifecycle version
+	 * @param buildCache the build cache in use
+	 */
+	void executingLifecycle(BuildRequest request, LifecycleVersion version, Cache buildCache);
+
+	/**
 	 * Log that a specific phase is running.
 	 * @param request the build request
 	 * @param name the name of the phase
@@ -138,6 +110,20 @@ public interface BuildLog {
 	 * @param request the build request
 	 */
 	void executedLifecycle(BuildRequest request);
+
+	/**
+	 * Log that a tag has been created.
+	 * @param tag the tag reference
+	 */
+	void taggedImage(ImageReference tag);
+
+	/**
+	 * Log that a cache cleanup step was not completed successfully.
+	 * @param cache the cache
+	 * @param exception any exception that caused the failure
+	 * @since 3.2.6
+	 */
+	void failedCleaningWorkDir(Cache cache, Exception exception);
 
 	/**
 	 * Factory method that returns a {@link BuildLog} the outputs to {@link System#out}.

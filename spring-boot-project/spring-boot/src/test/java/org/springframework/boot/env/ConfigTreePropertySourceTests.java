@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2023 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,20 +52,20 @@ class ConfigTreePropertySourceTests {
 	@Test
 	void createWhenNameIsNullThrowsException() {
 		assertThatIllegalArgumentException().isThrownBy(() -> new ConfigTreePropertySource(null, this.directory))
-				.withMessageContaining("name must contain");
+			.withMessageContaining("name must contain");
 	}
 
 	@Test
 	void createWhenSourceIsNullThrowsException() {
 		assertThatIllegalArgumentException().isThrownBy(() -> new ConfigTreePropertySource("test", null))
-				.withMessage("Property source must not be null");
+			.withMessage("Property source must not be null");
 	}
 
 	@Test
 	void createWhenSourceDoesNotExistThrowsException() {
 		Path missing = this.directory.resolve("missing");
 		assertThatIllegalArgumentException().isThrownBy(() -> new ConfigTreePropertySource("test", missing))
-				.withMessage("Directory '" + missing + "' does not exist");
+			.withMessage("Directory '" + missing + "' does not exist");
 	}
 
 	@Test
@@ -73,18 +73,27 @@ class ConfigTreePropertySourceTests {
 		Path file = this.directory.resolve("file");
 		FileCopyUtils.copy("test".getBytes(StandardCharsets.UTF_8), file.toFile());
 		assertThatIllegalArgumentException().isThrownBy(() -> new ConfigTreePropertySource("test", file))
-				.withMessage("File '" + file + "' is not a directory");
+			.withMessage("File '" + file + "' is not a directory");
 	}
 
 	@Test
 	void getPropertyNamesFromFlatReturnsPropertyNames() throws Exception {
 		ConfigTreePropertySource propertySource = getFlatPropertySource();
-		assertThat(propertySource.getPropertyNames()).containsExactly("a", "b", "c");
+		assertThat(propertySource.getPropertyNames()).containsExactly("a", "b", "c", "one");
 	}
 
 	@Test
 	void getPropertyNamesFromNestedReturnsPropertyNames() throws Exception {
 		ConfigTreePropertySource propertySource = getNestedPropertySource();
+		assertThat(propertySource.getPropertyNames()).containsExactly("c", "fa.a", "fa.b", "fb.a", "fb.fa.a");
+	}
+
+	@Test
+	void getPropertyNamesFromNestedWithSymlinkInPathReturnsPropertyNames() throws Exception {
+		addNested();
+		Path symlinkTempDir = Files.createSymbolicLink(this.directory.resolveSibling("symlinkTempDir"), this.directory);
+		ConfigTreePropertySource propertySource = new ConfigTreePropertySource("test", symlinkTempDir);
+		Files.delete(symlinkTempDir);
 		assertThat(propertySource.getPropertyNames()).containsExactly("c", "fa.a", "fa.b", "fb.a", "fb.fa.a");
 	}
 
@@ -126,7 +135,7 @@ class ConfigTreePropertySourceTests {
 		Path b = this.directory.resolve("b");
 		Files.delete(b);
 		assertThatIllegalStateException().isThrownBy(() -> propertySource.getProperty("b").toString())
-				.withMessage("The property file '" + b + "' no longer exists");
+			.withMessage("The property file '" + b + "' no longer exists");
 	}
 
 	@Test
@@ -134,8 +143,8 @@ class ConfigTreePropertySourceTests {
 		ConfigTreePropertySource propertySource = getFlatPropertySource();
 		TextResourceOrigin origin = (TextResourceOrigin) propertySource.getOrigin("b");
 		assertThat(origin.getResource().getFile()).isEqualTo(this.directory.resolve("b").toFile());
-		assertThat(origin.getLocation().getLine()).isEqualTo(0);
-		assertThat(origin.getLocation().getColumn()).isEqualTo(0);
+		assertThat(origin.getLocation().getLine()).isZero();
+		assertThat(origin.getLocation().getColumn()).isZero();
 	}
 
 	@Test
@@ -154,6 +163,7 @@ class ConfigTreePropertySourceTests {
 		assertThat(environment.getProperty("b")).isEqualTo("B");
 		assertThat(environment.getProperty("c", InputStreamSource.class).getInputStream()).hasContent("C");
 		assertThat(environment.getProperty("c", byte[].class)).contains('C');
+		assertThat(environment.getProperty("one", Integer.class)).isOne();
 	}
 
 	@Test
@@ -199,10 +209,35 @@ class ConfigTreePropertySourceTests {
 		assertThat(propertySource.getProperty("spring")).hasToString("boot");
 	}
 
+	@Test
+	void getPropertyAsStringWhenMultiLinePropertyReturnsNonTrimmed() throws Exception {
+		addProperty("a", "a\nb\n");
+		ConfigTreePropertySource propertySource = new ConfigTreePropertySource("test", this.directory,
+				Option.AUTO_TRIM_TRAILING_NEW_LINE);
+		assertThat(propertySource.getProperty("a")).hasToString("a\nb\n");
+	}
+
+	@Test
+	void getPropertyAsStringWhenPropertyEndsWithNewLineReturnsTrimmed() throws Exception {
+		addProperty("a", "a\n");
+		ConfigTreePropertySource propertySource = new ConfigTreePropertySource("test", this.directory,
+				Option.AUTO_TRIM_TRAILING_NEW_LINE);
+		assertThat(propertySource.getProperty("a")).hasToString("a");
+	}
+
+	@Test
+	void getPropertyAsStringWhenPropertyEndsWithWindowsNewLineReturnsTrimmed() throws Exception {
+		addProperty("a", "a\r\n");
+		ConfigTreePropertySource propertySource = new ConfigTreePropertySource("test", this.directory,
+				Option.AUTO_TRIM_TRAILING_NEW_LINE);
+		assertThat(propertySource.getProperty("a")).hasToString("a");
+	}
+
 	private ConfigTreePropertySource getFlatPropertySource() throws IOException {
 		addProperty("a", "A");
 		addProperty("b", "B");
 		addProperty("c", "C");
+		addProperty("one", "1");
 		return new ConfigTreePropertySource("test", this.directory);
 	}
 

@@ -1,6 +1,5 @@
 plugins {
 	id "java-library"
-	id "org.springframework.boot.conventions"
 	id "org.springframework.boot.deployed"
 }
 
@@ -26,9 +25,10 @@ dependencies {
 	implementation("org.springframework:spring-core")
 }
 
-task copyIntegrationTestSources(type: Copy) {
+task syncIntegrationTestSources(type: Sync) {
+	destinationDir file("${buildDir}/it")
 	from file("src/it")
-	into "${buildDir}/it"
+	filter(springRepoistoryTransformers.ant())
 }
 
 processResources {
@@ -39,10 +39,10 @@ processResources {
 }
 
 task integrationTest {
-	dependsOn copyIntegrationTestSources, jar
+	dependsOn syncIntegrationTestSources, jar
 	def resultsDir = file("${buildDir}/test-results/integrationTest")
-	inputs.dir file("src/it")
-	inputs.files(sourceSets.main.runtimeClasspath).withNormalizer(ClasspathNormalizer)
+	inputs.dir(file("src/it")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("source")
+	inputs.files(sourceSets.main.runtimeClasspath).withNormalizer(ClasspathNormalizer).withPropertyName("classpath")
 	outputs.dirs resultsDir
 	doLast {
 		ant.with {

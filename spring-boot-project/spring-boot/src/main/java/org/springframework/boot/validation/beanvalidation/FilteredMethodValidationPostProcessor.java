@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2022 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.boot.validation.beanvalidation;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.aop.ClassFilter;
@@ -29,7 +28,7 @@ import org.springframework.validation.beanvalidation.MethodValidationPostProcess
 
 /**
  * Custom {@link MethodValidationPostProcessor} that applies
- * {@code MethodValidationExclusionFilter exclusion filters}.
+ * {@link MethodValidationExcludeFilter exclusion filters}.
  *
  * @author Andy Wilkinson
  * @since 2.4.0
@@ -39,18 +38,18 @@ public class FilteredMethodValidationPostProcessor extends MethodValidationPostP
 	private final Collection<MethodValidationExcludeFilter> excludeFilters;
 
 	/**
-	 * Creates a new {@code ExcludingMethodValidationPostProcessor} that will apply the
-	 * given {@code exclusionFilters} when identifying beans that are eligible for method
+	 * Creates a new {@code FilteredMethodValidationPostProcessor} that will apply the
+	 * given {@code excludeFilters} when identifying beans that are eligible for method
 	 * validation post-processing.
 	 * @param excludeFilters filters to apply
 	 */
 	public FilteredMethodValidationPostProcessor(Stream<? extends MethodValidationExcludeFilter> excludeFilters) {
-		this.excludeFilters = excludeFilters.collect(Collectors.toList());
+		this.excludeFilters = excludeFilters.map(MethodValidationExcludeFilter.class::cast).toList();
 	}
 
 	/**
-	 * Creates a new {@code ExcludingMethodValidationPostProcessor} that will apply the
-	 * given {@code exclusionFilters} when identifying beans that are eligible for method
+	 * Creates a new {@code FilteredMethodValidationPostProcessor} that will apply the
+	 * given {@code excludeFilters} when identifying beans that are eligible for method
 	 * validation post-processing.
 	 * @param excludeFilters filters to apply
 	 */

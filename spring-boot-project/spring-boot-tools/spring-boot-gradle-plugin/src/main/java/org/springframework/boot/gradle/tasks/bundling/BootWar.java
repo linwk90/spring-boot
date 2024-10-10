@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,32 +17,40 @@
 package org.springframework.boot.gradle.tasks.bundling;
 
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
 import org.gradle.api.Action;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.result.ResolvedArtifactResult;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.FileTreeElement;
 import org.gradle.api.internal.file.copy.CopyAction;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.bundling.War;
+import org.gradle.work.DisableCachingByDefault;
+
+import org.springframework.boot.loader.tools.LoaderImplementation;
 
 /**
  * A custom {@link War} task that produces a Spring Boot executable war.
  *
  * @author Andy Wilkinson
  * @author Phillip Webb
+ * @author Scott Frederick
  * @since 2.0.0
  */
-public class BootWar extends War implements BootArchive {
+@DisableCachingByDefault(because = "Not worth caching")
+public abstract class BootWar extends War implements BootArchive {
 
-	private static final String LAUNCHER = "org.springframework.boot.loader.WarLauncher";
+	private static final String LAUNCHER = "org.springframework.boot.loader.launch.WarLauncher";
 
 	private static final String CLASSES_DIRECTORY = "WEB-INF/classes/";
 
@@ -50,9 +58,19 @@ public class BootWar extends War implements BootArchive {
 
 	private static final String LIB_DIRECTORY = "WEB-INF/lib/";
 
+	private static final String LAYERS_INDEX = "WEB-INF/layers.idx";
+
+	private static final String CLASSPATH_INDEX = "WEB-INF/classpath.idx";
+
 	private final BootArchiveSupport support;
 
-	private final Property<String> mainClass;
+	private final LayeredSpec layered;
+
+	private final Provider<String> projectName;
+
+	private final Provider<Object> projectVersion;
+
+	private final ResolvedDependencies resolvedDependencies;
 
 	private FileCollection providedClasspath;
 
@@ -61,10 +79,15 @@ public class BootWar extends War implements BootArchive {
 	 */
 	public BootWar() {
 		this.support = new BootArchiveSupport(LAUNCHER, new LibrarySpec(), new ZipCompressionResolver());
-		this.mainClass = getProject().getObjects().property(String.class);
+		Project project = getProject();
+		this.layered = project.getObjects().newInstance(LayeredSpec.class);
 		getWebInf().into("lib-provided", fromCallTo(this::getProvidedLibFiles));
 		this.support.moveModuleInfoToRoot(getRootSpec());
 		getRootSpec().eachFile(this.support::excludeNonZipLibraryFiles);
+		this.projectName = project.provider(project::getName);
+		this.projectVersion = project.provider(project::getVersion);
+		this.resolvedDependencies = new ResolvedDependencies(project);
+		getIncludeTools().convention(true);
 	}
 
 	private Object getProvidedLibFiles() {
@@ -72,32 +95,43 @@ public class BootWar extends War implements BootArchive {
 	}
 
 	@Override
+	public void resolvedArtifacts(Provider<Set<ResolvedArtifactResult>> resolvedArtifacts) {
+		this.resolvedDependencies.resolvedArtifacts(resolvedArtifacts);
+	}
+
+	@Nested
+	ResolvedDependencies getResolvedDependencies() {
+		return this.resolvedDependencies;
+	}
+
+	@Override
 	public void copy() {
-		this.support.configureManifest(getManifest(), getMainClass().get(), CLASSES_DIRECTORY, LIB_DIRECTORY, null,
-				null);
+		this.support.configureManifest(getManifest(), getMainClass().get(), CLASSES_DIRECTORY, LIB_DIRECTORY,
+				CLASSPATH_INDEX, (isLayeredDisabled()) ? null : LAYERS_INDEX,
+				this.getTargetJavaVersion().get().getMajorVersion(), this.projectName.get(), this.projectVersion.get());
 		super.copy();
+	}
+
+	private boolean isLayeredDisabled() {
+		return !this.layered.getEnabled().get();
 	}
 
 	@Override
 	protected CopyAction createCopyAction() {
-		return this.support.createCopyAction(this);
+		LoaderImplementation loaderImplementation = getLoaderImplementation().getOrElse(LoaderImplementation.DEFAULT);
+		LayerResolver layerResolver = null;
+		if (!isLayeredDisabled()) {
+			layerResolver = new LayerResolver(this.resolvedDependencies, this.layered, this::isLibrary);
+		}
+		String jarmodeToolsLocation = isIncludeJarmodeTools() ? LIB_DIRECTORY : null;
+		return this.support.createCopyAction(this, this.resolvedDependencies, loaderImplementation, false,
+				layerResolver, jarmodeToolsLocation);
 	}
 
-	@Override
-	public Property<String> getMainClass() {
-		return this.mainClass;
-	}
-
-	@Override
-	@Deprecated
-	public String getMainClassName() {
-		return this.mainClass.getOrNull();
-	}
-
-	@Override
-	@Deprecated
-	public void setMainClassName(String mainClassName) {
-		this.mainClass.set(mainClassName);
+	@SuppressWarnings("removal")
+	private boolean isIncludeJarmodeTools() {
+		return Boolean.TRUE.equals(this.getIncludeTools().get())
+				&& Boolean.TRUE.equals(this.layered.getIncludeLayerTools().get());
 	}
 
 	@Override
@@ -145,7 +179,7 @@ public class BootWar extends War implements BootArchive {
 	public void providedClasspath(Object... classpath) {
 		FileCollection existingClasspath = this.providedClasspath;
 		this.providedClasspath = getProject()
-				.files((existingClasspath != null) ? existingClasspath : Collections.emptyList(), classpath);
+			.files((existingClasspath != null) ? existingClasspath : Collections.emptyList(), classpath);
 	}
 
 	/**
@@ -169,18 +203,6 @@ public class BootWar extends War implements BootArchive {
 		this.providedClasspath = getProject().files(classpath);
 	}
 
-	@Override
-	@Deprecated
-	public boolean isExcludeDevtools() {
-		return this.support.isExcludeDevtools();
-	}
-
-	@Override
-	@Deprecated
-	public void setExcludeDevtools(boolean excludeDevtools) {
-		this.support.setExcludeDevtools(excludeDevtools);
-	}
-
 	/**
 	 * Return the {@link ZipCompression} that should be used when adding the file
 	 * represented by the given {@code details} to the jar. By default, any
@@ -191,6 +213,25 @@ public class BootWar extends War implements BootArchive {
 	 */
 	protected ZipCompression resolveZipCompression(FileCopyDetails details) {
 		return isLibrary(details) ? ZipCompression.STORED : ZipCompression.DEFLATED;
+	}
+
+	/**
+	 * Returns the spec that describes the layers in a layered jar.
+	 * @return the spec for the layers
+	 * @since 2.5.0
+	 */
+	@Nested
+	public LayeredSpec getLayered() {
+		return this.layered;
+	}
+
+	/**
+	 * Configures the war's layering using the given {@code action}.
+	 * @param action the action to apply
+	 * @since 2.5.0
+	 */
+	public void layered(Action<LayeredSpec> action) {
+		action.execute(this.layered);
 	}
 
 	/**

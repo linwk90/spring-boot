@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,22 @@ package org.springframework.boot.autoconfigure.jdbc;
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
+import org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizationAutoConfiguration;
 import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.support.JdbcTransactionManager;
 import org.springframework.transaction.TransactionManager;
 
@@ -42,8 +47,9 @@ import org.springframework.transaction.TransactionManager;
  * @author Kazuki Shimizu
  * @since 1.0.0
  */
-@Configuration(proxyBeanMethods = false)
-@ConditionalOnClass({ JdbcTemplate.class, TransactionManager.class })
+@AutoConfiguration(before = TransactionAutoConfiguration.class,
+		after = TransactionManagerCustomizationAutoConfiguration.class)
+@ConditionalOnClass({ DataSource.class, JdbcTemplate.class, TransactionManager.class })
 @AutoConfigureOrder(Ordered.LOWEST_PRECEDENCE)
 @EnableConfigurationProperties(DataSourceProperties.class)
 public class DataSourceTransactionManagerAutoConfiguration {
@@ -54,11 +60,16 @@ public class DataSourceTransactionManagerAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean(TransactionManager.class)
-		JdbcTransactionManager transactionManager(DataSource dataSource,
+		DataSourceTransactionManager transactionManager(Environment environment, DataSource dataSource,
 				ObjectProvider<TransactionManagerCustomizers> transactionManagerCustomizers) {
-			JdbcTransactionManager transactionManager = new JdbcTransactionManager(dataSource);
+			DataSourceTransactionManager transactionManager = createTransactionManager(environment, dataSource);
 			transactionManagerCustomizers.ifAvailable((customizers) -> customizers.customize(transactionManager));
 			return transactionManager;
+		}
+
+		private DataSourceTransactionManager createTransactionManager(Environment environment, DataSource dataSource) {
+			return environment.getProperty("spring.dao.exceptiontranslation.enabled", Boolean.class, Boolean.TRUE)
+					? new JdbcTransactionManager(dataSource) : new DataSourceTransactionManager(dataSource);
 		}
 
 	}
